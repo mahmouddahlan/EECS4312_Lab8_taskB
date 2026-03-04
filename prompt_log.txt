@@ -1,5 +1,5 @@
-## Student Name:
-## Student ID: 
+## Student Name: Mahmoud Dahlan
+## Student ID: 219673896
 
 Prompt #1: {I am implementing Task B: Event Registration with Waitlist.
 
