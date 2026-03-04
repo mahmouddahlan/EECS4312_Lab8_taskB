@@ -1,6 +1,251 @@
 ## Student Name:
 ## Student ID: 
 
-Prompt #1: {}
-Response #1: {}
+Prompt #1: {I am implementing Task B: Event Registration with Waitlist.
+
+Problem Summary:
+- Single event with fixed capacity.
+- Register users until capacity is reached.
+- Extra users go to FIFO waitlist.
+- On cancellation of a registered user, promote the earliest waitlisted user.
+- Prevent duplicate registrations.
+- Allow users to query status.
+
+Functional Requirements:
+- capacity >= 0
+- register(user_id)
+- cancel(user_id)
+- status(user_id)
+- deterministic ordering
+- FIFO waitlist
+- promotion on cancellation
+
+Constraints:
+- registered users must never exceed capacity
+- no duplicate users in system
+- user cannot exist in multiple states
+- waitlist must preserve FIFO
+- promotions must be deterministic
+
+Acceptance Criteria examples:
+- capacity=1, register A then B → A registered, B waitlisted position 1
+- cancel registered user promotes earliest waitlisted
+- duplicate registration raises DuplicateRequest
+- capacity=0 → all users waitlisted
+
+Before generating code, are there any ambiguities or missing clarifications in my requirements
+}
+Response #1: {Yes. There are several important ambiguities you should clarify before implementation:
+
+1. Behavior of cancel(user_id) when the user does not exist:
+   - Should it raise an exception (e.g., NotFound)?
+   - Or should it silently do nothing (no-op)?
+   You must explicitly document this as a constraint or assumption.
+
+2. Ordering of registered users:
+   - Should registered users preserve insertion order?
+   - If a promotion occurs, should the promoted user be appended at the end of the registered list?
+   Determinism requires that this behavior be defined.
+
+3. Waitlist position numbering:
+   - Should waitlist positions be 0-based or 1-based?
+   This must be explicitly defined for status().
+
+4. Snapshot behavior:
+   - Are you required to provide a method to return full state?
+   - If so, what exact structure should it return?
+
+5. Type validation:
+   - Should capacity type be validated (e.g., reject non-integers)?
+   - Should negative capacity raise ValueError?
+
+I recommend:
+- Define cancel unknown user as a no-op OR raise NotFound (choose one).
+- Define waitlist position as 1-based.
+- Define registered list as preserving insertion order.
+- Explicitly state that promotion appends promoted user to end of registered list.
+- Validate capacity as integer >= 0.
+
+Once these are clarified in your specification, implementation can proceed deterministically.
+}
 --------------------------------------------------
+Prompt #2{Implement solution.py for EventRegistration with the following final rules:
+
+- capacity must be int and >= 0 (ValueError if negative, TypeError if not int)
+- registered list preserves insertion order
+- waitlist is FIFO
+- waitlist position is 1-based
+- register():
+    - if user already in registered or waitlist → raise DuplicateRequest
+    - if capacity available → append to registered
+    - else append to waitlist
+- cancel():
+    - if user in registered → remove them, then promote earliest waitlisted (if any)
+    - promotion removes from front of waitlist and appends to end of registered
+    - if user in waitlist → remove from waitlist
+    - if user not found → no-op (do not raise)
+- status():
+    - return UserStatus("registered", None)
+    - return UserStatus("waitlisted", position)
+    - return UserStatus("none", None)
+- snapshot():
+    - return deterministic dict with:
+        "registered": ordered list
+        "waitlisted": ordered list
+        "capacity": integer capacity
+
+Use simple Python lists. Determinism required.
+}
+Response #2{Here is the complete implementation of solution.py:
+
+from dataclasses import dataclass
+from typing import List, Optional
+
+
+class DuplicateRequest(Exception):
+    pass
+
+
+class NotFound(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class UserStatus:
+    state: str
+    position: Optional[int] = None
+
+
+class EventRegistration:
+
+    def __init__(self, capacity: int) -> None:
+        if not isinstance(capacity, int):
+            raise TypeError("capacity must be int")
+        if capacity < 0:
+            raise ValueError("capacity must be >= 0")
+
+        self._capacity: int = capacity
+        self._registered: List[str] = []
+        self._waitlist: List[str] = []
+
+    def register(self, user_id: str) -> UserStatus:
+        if user_id in self._registered or user_id in self._waitlist:
+            raise DuplicateRequest(f"{user_id} already exists")
+
+        if len(self._registered) < self._capacity:
+            self._registered.append(user_id)
+            return UserStatus("registered", None)
+
+        self._waitlist.append(user_id)
+        return UserStatus("waitlisted", len(self._waitlist))
+
+    def cancel(self, user_id: str) -> None:
+        if user_id in self._registered:
+            self._registered.remove(user_id)
+
+            if self._waitlist and len(self._registered) < self._capacity:
+                promoted = self._waitlist.pop(0)
+                self._registered.append(promoted)
+            return
+
+        if user_id in self._waitlist:
+            self._waitlist.remove(user_id)
+            return
+
+        # no-op for unknown user
+
+    def status(self, user_id: str) -> UserStatus:
+        if user_id in self._registered:
+            return UserStatus("registered", None)
+
+        if user_id in self._waitlist:
+            position = self._waitlist.index(user_id) + 1
+            return UserStatus("waitlisted", position)
+
+        return UserStatus("none", None)
+
+    def snapshot(self) -> dict:
+        return {
+            "registered": list(self._registered),
+            "waitlisted": list(self._waitlist),
+            "capacity": self._capacity
+        }}
+--------------------------------------------------
+Prompt #3{Here are my acceptance criteria:
+AC1: 
+
+Given capacity = 2
+When register("A"), register("B"), then cancel("A")
+Then "B" remains registered, "A" becomes none, and waitlist remains empty
+Linked Constraint ID(s): C2, C5, C7
+AC2: 
+
+Given capacity = 1 
+When register("A"), register("B") 
+Then "A" is registered and "B" is waitlisted at position 1 
+Linked Constraint ID(s): C2, C3 
+AC3: 
+Given capacity = 2 and registered=["A","B"] and waitlist=["C","D"] 
+When cancel("A") 
+Then registered becomes ["B","C"] and waitlist becomes ["D"] 
+Linked Constraint ID(s): C3, C5, C7 
+AC4: 
+
+Given capacity = 1 and waitlist contains ["B","C","D"] 
+When cancel("C") 
+Then waitlist becomes ["B","D"] and status("D") returns waitlisted position 2 
+Linked Constraint ID(s): C6, C3 
+AC5: 
+
+Given capacity = 1 
+When register("A") then register("A") again 
+Then second register raises DuplicateRequest and state remains unchanged 
+Linked Constraint ID(s): C4, C7 
+AC6: 
+
+Given capacity = 0 
+When register("A"), register("B") 
+Then registered list is empty and waitlist is ["A","B"] and status("B") is waitlisted position 2 
+Linked Constraint ID(s): C1, C2, C3 
+AC7:
+Given capacity = 1 and registered = ["A"]
+When cancel("X") where "X" is not registered or waitlisted
+Then no exception is raised and registered remains ["A"] and waitlist remains empty
+Linked Constraint ID(s): C8, C7
+AC8:
+Given capacity = 1 and register("A"), register("B") (so B is waitlisted)
+When cancel("A") then register("A") again
+Then "B" becomes registered and "A" becomes waitlisted position 1
+Linked Constraint ID(s): C2, C3, C5, C7
+
+Does the implementation you provided satisfy all these acceptance criteria?
+
+}
+Response #3{Yes. The implementation satisfies all listed acceptance criteria:
+
+AC1:
+If waitlist is empty and a registered user is canceled, the user is removed and no promotion occurs.
+
+AC2:
+Users are appended to registered until capacity is reached. Additional users are appended to waitlist in FIFO order.
+
+AC3:
+When canceling a registered user and waitlist is non-empty, pop(0) ensures earliest waitlisted user is promoted and appended to registered.
+
+AC4:
+Removing a waitlisted user updates list ordering automatically, and status() recalculates 1-based position dynamically.
+
+AC5:
+register() checks both registered and waitlist lists and raises DuplicateRequest if found.
+
+AC6:
+When capacity is 0, len(self._registered) < self._capacity is always False, so all users are placed in waitlist.
+
+AC7:
+cancel() silently returns if user not found (no-op).
+
+AC8:
+After cancel removes a user from system, they can re-register since duplicate check will no longer find them.
+
+All acceptance criteria are satisfied under deterministic behavior.
+}
