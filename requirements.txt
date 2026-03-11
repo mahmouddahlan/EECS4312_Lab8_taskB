@@ -1,0 +1,188 @@
+## 1. Problem Understanding
+System purpose:
+The system manages registration for a single event with a fixed capacity and FIFO waitlist. It automatically promotes the earliest waitlisted user when a registered user cancels and prevents duplicate registrations.
+
+Inputs to the system:
+- capacity: int, must be >= 0
+- user_id: str, case-sensitive identifier used by register, cancel, and status
+
+Outputs produced by the system:
+- UserStatus(state, position) for register() and status()
+- cancel() updates state and may raise NotFound
+- snapshot() returns a deterministic dict containing registered, waitlist, and capacity
+
+Primary goal of the system:
+Provide reliable, deterministic, low-friction registration and waitlist management that supports both primary and edge users.
+
+---
+## 2. Assumptions
+A1: capacity is an integer input.
+A2: capacity must be >= 0.
+A3: user_id values are case-sensitive strings.
+A4: the system manages only one event at a time.
+A5: operations are processed sequentially.
+A6: cancelling an unknown user raises NotFound in the updated framework.
+A7: waitlist position is 1-based.
+A8: snapshot() is used for deterministic state verification.
+
+---
+## 3. Functional Requirements
+FR1:
+The system shall register users until capacity is reached.
+
+FR2:
+The system shall place additional users into a FIFO waitlist.
+
+FR3:
+The system shall automatically promote the earliest waitlisted user when a registered user cancels.
+
+FR4:
+The system shall prevent duplicate registrations by raising DuplicateRequest.
+
+FR5:
+The system shall provide status outputs using registered, waitlisted, or none, with 1-based waitlist position when applicable.
+
+FR6:
+The system shall raise NotFound when cancelling an unknown user.
+
+FR7:
+The system shall expose deterministic ordered state through snapshot().
+
+FR8:
+The system shall preserve deterministic behavior for repeated identical operation sequences.
+
+---
+## 4. System Constraints
+C1:
+Derived from persona attribute: Jane – trusts the system to resolve conflicts and enforce rules automatically.
+The system must automatically promote the earliest waitlisted user when a registered user cancels.
+
+C2:
+Derived from persona attribute: Jane – prefers predictable and stable ordering.
+The system must preserve deterministic FIFO waitlist ordering.
+
+C3:
+Derived from persona attribute: Jane – prefers concise outputs and minimal interaction.
+The system must return concise status outputs without extra interaction.
+
+C4:
+Derived from persona attribute: Jane – duplicate system behavior is a pain point.
+The system must prevent duplicate registrations and duplicate state entries.
+
+C5:
+Derived from persona attribute: Mo – needs deterministic behavior under ties or conflicting conditions.
+The system must produce identical results under identical operation sequences.
+
+C6:
+Derived from persona attribute: Mo – silent failures are a pain point.
+The system must explicitly reject unknown-user cancellation by raising NotFound.
+
+C7:
+Derived from persona attribute: Mo – needs explicit handling of edge cases.
+The system must correctly handle capacity = 0 without invalid registration.
+
+C8:
+Derived from persona attribute: Mo – needs explicit visibility into system decisions.
+The system must provide deterministic ordered state using snapshot() after operations.
+
+---
+## 5. Acceptance Criteria
+AC1:
+Given capacity = 2
+When register("A"), register("B"), then cancel("A")
+Then "B" remains registered, "A" becomes none, and waitlist remains empty
+Linked Constraint ID(s): C1, C5
+
+AC2:
+Given capacity = 1
+When register("A"), register("B")
+Then "A" is registered and "B" is waitlisted at position 1
+Linked Constraint ID(s): C2, C3
+
+AC3:
+Given capacity = 2 and registered = ["A","B"] and waitlist = ["C","D"]
+When cancel("A")
+Then registered becomes ["B","C"] and waitlist becomes ["D"]
+Linked Constraint ID(s): C1, C2, C5
+
+AC4:
+Given capacity = 1 and waitlist contains ["B","C","D"]
+When cancel("C")
+Then waitlist becomes ["B","D"] and status("D") returns waitlisted position 2
+Linked Constraint ID(s): C2, C8
+
+AC5:
+Given capacity = 1
+When register("A") then register("A") again
+Then DuplicateRequest is raised and state remains unchanged
+Linked Constraint ID(s): C4
+
+AC6:
+Given capacity = 0
+When register("A"), register("B")
+Then registered remains empty and both users are waitlisted in FIFO order
+Linked Constraint ID(s): C7, C2
+
+AC7:
+Given capacity = 1 and registered = ["A"]
+When cancel("X") where "X" is not registered or waitlisted
+Then NotFound is raised and state remains unchanged
+Linked Constraint ID(s): C6
+
+AC8:
+Given capacity = 1 and register("A"), register("B")
+When cancel("A") then register("A") again
+Then "B" becomes registered and "A" becomes waitlisted position 1
+Linked Constraint ID(s): C1, C2, C5
+
+---
+## 6. Edge Cases
+EC1:
+Expected system behavior:
+Capacity = 0: all users must remain on the waitlist and none may become registered.
+
+EC2:
+Expected system behavior:
+Cancelling a registered user when the waitlist is empty must remove the user and perform no promotion.
+
+EC3:
+Expected system behavior:
+Cancelling a waitlisted user must remove them and update subsequent waitlist positions.
+
+EC4:
+Expected system behavior:
+Re-registering after cancellation must be treated as a new request under current capacity conditions.
+
+EC5:
+Expected system behavior:
+Duplicate registration must raise DuplicateRequest and leave state unchanged.
+
+EC6:
+Expected system behavior:
+Cancelling an unknown user must raise NotFound and leave state unchanged.
+
+---
+## 7. Traceability
+FR1 → C2 → AC2
+FR2 → C2 → AC2
+FR3 → C1, C2, C5 → AC1, AC3, AC8
+FR4 → C4 → AC5
+FR5 → C3, C5 → AC2, AC4
+FR6 → C6 → AC7
+FR7 → C8 → AC3, AC4
+FR8 → C5 → AC1, AC3, AC8
+
+---
+## Revision Notes
+
+Revision Note 1
+Requirement updated: Unknown-user cancellation behavior
+Reason: The updated starter framework and tests clarified that cancelling an unknown user must raise NotFound rather than silently doing nothing.
+Action: Updated C6 / AC7 and implementation accordingly.
+Triggered by LLM feedback: No, discovered from updated framework/tests.
+
+Revision Note 2
+Requirement updated: Snapshot output key naming
+Reason: The updated starter tests expect the snapshot key "waitlist" instead of "waitlisted".
+Action: Updated snapshot contract to use "waitlist" while keeping UserStatus.state as "waitlisted".
+Triggered by LLM feedback: Confirmed during debugging.

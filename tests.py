@@ -197,7 +197,7 @@ def test_capacity_zero_edge_case_all_waitlisted():
     assert ev.status("A") == UserStatus("none", None)
     assert ev.status("B") == UserStatus("waitlisted", 1)
 
-def test_cancel_unknown_user_is_noop_by_assumption():
+def test_cancel_unknown_user_raises_notfound():
     # Validates C8, C7 (AC7)
     ev = EventRegistration(capacity=1)
     ev.register("A")
@@ -207,3 +207,4 @@ def test_cancel_unknown_user_is_noop_by_assumption():
     snap = ev.snapshot()
     assert snap["registered"] == ["A"]
     assert snap["waitlist"] == []
+    

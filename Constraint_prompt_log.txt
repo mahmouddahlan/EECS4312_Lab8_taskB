@@ -1,0 +1,14 @@
+Prompt 1:
+I am revisiting the Event Registration with Waitlist system from Lab 8 for Lab 9. I have two personas:
+
+Jane Adams (primary user): busy professional, relies on automation, wants predictable ordering, automatic conflict handling, and minimal interaction. Pain points: too many notifications, inconsistent behavior, manual conflict resolution.
+
+Mo Rodriguez (edge user): accessibility needs, sensitive to uncertainty, wants explicit explanations, deterministic behavior, explicit handling of edge cases, and no silent failures. Pain points: arbitrary outcomes, silent failures, inconsistent responses.
+
+Please help derive at least 8 clear, testable system constraints across both personas for this event registration system.
+
+Response summary:
+Derived constraints around deterministic FIFO ordering, automatic waitlist promotion, duplicate prevention, concise outputs, explicit error handling for unknown cancellations, edge-case handling for capacity=0, transparent state exposure, and stable repeated behavior.
+
+Decision:
+Accepted and adapted into Form1 and requirements.txt.
